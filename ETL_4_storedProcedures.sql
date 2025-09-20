@@ -1,18 +1,20 @@
------- STORED PROCEDURES 
-
--- 1. PROCEDURE PARA LIMPAR STAGING
+-- 1. PROCEDURE PARA LIMPAR STAGING (CORRIGIDA)
 CREATE OR REPLACE PROCEDURE dw.sp_limpar_staging()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('LIMPAR_STAGING', 'INICIADO', 'Iniciando limpeza da staging');
+    -- Log de início (CAPTURAR O ID)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('LIMPAR_STAGING', 'INICIADO', 'Iniciando limpeza da staging', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Limpando staging area...';
-	DROP TABLE IF EXISTS
+    
+    -- Operação principal
+    DROP TABLE IF EXISTS
         stg.vendas,
         stg.compras,
         stg.clientes,
@@ -21,39 +23,32 @@ BEGIN
         stg.produtos,
         stg.produtos_detalhes,
         stg.lojas;
-	
-    /** [#@#] POLÍTICA DE RETENÇÃO */
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-    -- Mantem apenas dados dos últimos 30 dias na staging
-        -- DEPRECATED DELETE FROM stg.vendas WHERE tb010_012_data < NOW() - INTERVAL '30 days';
-        -- DEPRECATED DELETE FROM stg.compras WHERE tb012_017_data_compra < NOW() - INTERVAL '30 days';
-    -- Log de expurgo
-        -- DEPRECATED INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-        -- DEPRECATED VALUES ('EXPURGO_STAGING', 'SUCESSO', 'Dados antigos removidos (30+ dias)');
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-    /** [#@#] POLÍTICA DE RETENÇÃO */
     
-    -- Log de sucesso
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('LIMPAR_STAGING', 'SUCESSO', 'Staging limpa com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR em vez de INSERIR novo
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Staging limpa com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
     
     RAISE NOTICE 'Staging area limpa com sucesso';
 END;
 $$;
 
--- 2. PROCEDURE PARA CARREGAR STAGING
+-- 2. PROCEDURE PARA CARREGAR STAGING (CORRIGIDA)
 CREATE OR REPLACE PROCEDURE dw.sp_carregar_staging()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('CARREGAR_STAGING', 'INICIADO', 'Carregando dados para staging area');
+    -- Log de início (CAPTURAR O ID)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('CARREGAR_STAGING', 'INICIADO', 'Carregando dados para staging area', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Carregando dados para staging...';
-    
     
     -- Tabela principal de Vendas
     CREATE TABLE IF NOT EXISTS stg.vendas AS
@@ -138,63 +133,65 @@ BEGIN
     JOIN public.tb002_cidades cid ON (e.tb002_cod_cidade = cid.tb002_cod_cidade AND e.tb001_sigla_uf = cid.tb001_sigla_uf)
     JOIN public.tb001_uf uf ON cid.tb001_sigla_uf = uf.tb001_sigla_uf;
     
-    -- Log de sucesso
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('CARREGAR_STAGING', 'SUCESSO', 'Staging carregada com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR em vez de INSERIR novo
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Staging carregada com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
     
     RAISE NOTICE 'Staging carregada com sucesso';
 END;
 $$;
 
--- 3. PROCEDURE PARA LIMPAR DW
+-- 3. PROCEDURE PARA LIMPAR DW (CORRIGIDA)
 CREATE OR REPLACE PROCEDURE dw.sp_limpar_dw()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('LIMPAR_DW', 'INICIADO', 'Iniciando limpeza do DW');
+    -- Log de início (CAPTURAR O ID)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('LIMPAR_DW', 'INICIADO', 'Iniciando limpeza do DW', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Limpando data warehouse...';
     
+    -- ORDEM CORRETA: Primeiro a tabela fato, depois as dimensões
+    TRUNCATE TABLE dw.Fato_Vendas RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE dw.Dim_Tempo RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE dw.Dim_Cliente RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE dw.Dim_Funcionario RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE dw.Dim_Produto RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE dw.Dim_Loja RESTART IDENTITY CASCADE;
     
-    -- Limpar tabelas fato primeiro (devido às FK)
-    TRUNCATE TABLE dw.Fato_Vendas RESTART IDENTITY;
-    
-    -- Limpar dimensões
-    TRUNCATE TABLE
-    dw.Fato_Vendas,
-    dw.Dim_Tempo,
-    dw.Dim_Cliente,
-    dw.Dim_Funcionario,
-    dw.Dim_Produto,
-    dw.Dim_Loja
-RESTART IDENTITY CASCADE;
-
-    
-    -- Log de sucesso
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('LIMPAR_DW', 'SUCESSO', 'Data warehouse limpo com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR em vez de INSERIR novo
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Data warehouse limpo com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
     
     RAISE NOTICE 'Data warehouse limpo com sucesso';
 END;
 $$;
 
--- 4. PROCEDURE PARA CARREGAR DW
+-- 4. PROCEDURE PARA CARREGAR DW (CORRIGIDA)
 CREATE OR REPLACE PROCEDURE dw.sp_carregar_dw()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('CARREGAR_DW', 'INICIADO', 'Carregando dados para DW');
+    -- Log de início (CAPTURAR O ID)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('CARREGAR_DW', 'INICIADO', 'Carregando dados para DW', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Carregando dados para data warehouse...';
-    
     
     -- Popula Dim_Tempo
     INSERT INTO dw.Dim_Tempo (idData, dataCompleta, ano, mes, dia)
@@ -281,27 +278,31 @@ BEGIN
 
     DROP TABLE IF EXISTS custo_medio_produto;
     
-    -- Log de sucesso
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('CARREGAR_DW', 'SUCESSO', 'Data warehouse carregado com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR em vez de INSERIR novo
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Data warehouse carregado com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
     
     RAISE NOTICE 'Data warehouse carregado com sucesso';
 END;
 $$;
 
--- 5. PROCEDURE PARA ATUALIZAR ESTATISTICAS
+-- 5. PROCEDURE PARA ATUALIZAR ESTATISTICAS (CORRIGIDA)
 CREATE OR REPLACE PROCEDURE dw.sp_atualizar_estatisticas()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('ATUALIZAR_ESTATISTICAS', 'INICIADO', 'Atualizando estatisticas');
+    -- Log de início (CAPTURAR O ID)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('ATUALIZAR_ESTATISTICAS', 'INICIADO', 'Atualizando estatisticas', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Atualizando estatísticas...';
-    
     
     ANALYZE dw.Dim_Tempo;
     ANALYZE dw.Dim_Cliente;
@@ -310,32 +311,13 @@ BEGIN
     ANALYZE dw.Dim_Loja;
     ANALYZE dw.Fato_Vendas;
     
-    -- Log de sucesso
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('ATUALIZAR_ESTATISTICAS', 'SUCESSO', 'Estatísticas atualizadas com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR em vez de INSERIR novo
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Estatísticas atualizadas com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
 
     RAISE NOTICE 'Estatísticas atualizadas com sucesso';
 END;
 $$;
-
--- X. PROCEDURE PARA ETL INCREMENTAL (APENAS NOVOS DADOS)
-CREATE OR REPLACE PROCEDURE dw.sp_etl_incremental()
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    ultima_data DATE;
-BEGIN
-    -- Encontrar a última data no DW
-    SELECT MAX(idData) INTO ultima_data FROM dw.Fato_Vendas;
-    
-    IF ultima_data IS NULL THEN
-        CALL dw.sp_etl_completo();
-    ELSE
-        RAISE NOTICE 'Executando ETL incremental a partir de %', ultima_data;
-        -- Logica de etl incremental (nao consegui fazer), vou deixar pra chamar o normal
-        CALL dw.sp_etl_completo();
-    END IF;
-END;
-$$;
-
-

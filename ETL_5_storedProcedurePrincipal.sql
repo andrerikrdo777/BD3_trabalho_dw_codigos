@@ -3,60 +3,54 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     inicio_time TIMESTAMP := NOW();
+    log_id INTEGER;
 BEGIN
-    /** [#@#] CONTROLE DE FREQUENCIA */
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
     -- Verificar se já está em execução
     IF EXISTS (SELECT 1 FROM dw.etl_log 
-               WHERE status IN ('INICIADO', 'EM_ANDAMENTO') 
+               WHERE status = 'INICIADO' 
                AND data_execucao > NOW() - INTERVAL '1 hour') THEN
         RAISE EXCEPTION 'ETL já está em execução. Aguarde a conclusão.';
-    END IF;	
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-    /** [#@#] CONTROLE DE FREQUENCIA  */
+    END IF;
 
-    -- Log de início
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem)
-    VALUES ('ETL_COMPLETO', 'INICIADO', 'Processo iniciado em ' || NOW());
+    -- Log de início (INSERIR e capturar o ID para depois ATUALIZAR)
+    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, data_execucao)
+    VALUES ('ETL_COMPLETO', 'INICIADO', 'Processo iniciado', inicio_time)
+    RETURNING id_log INTO log_id;
     
     RAISE NOTICE 'Iniciando processo ETL completo em %', NOW();
     
-    -- 1. LIMPEZA DAS STAGING AREAS
+    -- Executar as procedures (elas também devem usar a mesma lógica de UPDATE)
     CALL dw.sp_limpar_staging();
-    
-    -- 2. CARREGAMENTO PARA STAGING
     CALL dw.sp_carregar_staging();
-    
-    -- 3. LIMPEZA DO DW
     CALL dw.sp_limpar_dw();
-    
-    -- 4. CARREGAMENTO PARA DW
     CALL dw.sp_carregar_dw();
-    
-    -- 5. ATUALIZAR ESTATÍSTICAS
     CALL dw.sp_atualizar_estatisticas();
     
-    -- Log de conclusão
-    INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-    VALUES ('ETL_COMPLETO', 'SUCESSO', 'Processo concluído com sucesso', NOW() - inicio_time);
+    -- ATUALIZAR o registro existente para SUCESSO
+    UPDATE dw.etl_log 
+    SET status = 'SUCESSO',
+        mensagem = 'Processo concluído com sucesso',
+        duracao = NOW() - inicio_time
+    WHERE id_log = log_id;
     
     RAISE NOTICE 'Processo ETL completo finalizado com sucesso em %', NOW();
     
-    /** [#@#] TRATAMENTO DE ERROS DETALHADO */
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 EXCEPTION
     WHEN OTHERS THEN
-        -- Log de erro detalhado
-        INSERT INTO dw.etl_log (tipo_operacao, status, mensagem, duracao)
-        VALUES ('ETL_COMPLETO', 'ERRO', 
-                'Erro: ' || SQLERRM || ' - Linha: ' || SQLSTATE, 
-                NOW() - inicio_time);
+        UPDATE dw.etl_log 
+        SET status = 'ERRO',
+            mensagem = 'Erro: ' || SQLERRM,
+            duracao = NOW() - inicio_time
+        WHERE id_log = log_id;
         
         RAISE EXCEPTION 'Erro durante o ETL: %', SQLERRM;
-    /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-    /** [#@#] TRATAMENTO DE ERROS DETALHADO */
 END;
 $$;
+
+
+
+
+
 
 -- X. SCRIPT PARA VERIFICAR STATUS DO ETL
 DROP FUNCTION IF EXISTS dw.fn_verificar_status_etl();
