@@ -48,10 +48,6 @@ END;
 $$;
 
 
-
-
-
-
 -- X. SCRIPT PARA VERIFICAR STATUS DO ETL
 DROP FUNCTION IF EXISTS dw.fn_verificar_status_etl();
 

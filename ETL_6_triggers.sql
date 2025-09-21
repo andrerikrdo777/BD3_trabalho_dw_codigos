@@ -21,6 +21,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-drop table dw.etl_log;
+-- drop table dw.etl_log;
 
 
