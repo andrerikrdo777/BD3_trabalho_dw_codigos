@@ -40,4 +40,4 @@ AND dt.dataCompleta BETWEEN
 AND 
 '2025-03-31' -- DEFINIR PERIODO
 GROUP by dc.nomeCliente
-ORDER by "ValorAcumulado" desc LIMIT 10; -- Limita aos 10 maiores compradores, ajuste se necessário
+ORDER by "ValorAcumulado" desc LIMIT 10; 
