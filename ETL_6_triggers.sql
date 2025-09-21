@@ -1,6 +1,7 @@
 ------ TRIGGERS ------
 
 --  TRIGGER PARA LOG DE EXECUÇÃO DO ETL
+-- drop table etl_log
 CREATE TABLE IF NOT EXISTS dw.etl_log (
     id_log SERIAL PRIMARY KEY,
     data_execucao TIMESTAMP DEFAULT NOW(),

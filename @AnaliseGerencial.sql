@@ -1,4 +1,4 @@
--- 1. Quantidade de vendas agrupada por tipo e categoria
+-- 1. Quantidade de vendas agrupada por categoria
 select p.categoria,SUM(fv.quantidade) AS "QuantidadeTotalVendida"
 from dw.Fato_Vendas AS fv join dw.Dim_Produto AS p ON fv.idProduto = p.idProduto
 GROUP BY p.categoria
@@ -34,9 +34,9 @@ ORDER by nomeCliente;
 select dc.nomeCliente, SUM(fv.valorTotal) AS "ValorAcumulado"
 from dw.Fato_Vendas AS fv join dw.Dim_Cliente AS dc ON fv.idCliente = dc.idCliente join dw.Dim_Loja AS dl ON fv.idLoja = dl.idLoja join dw.Dim_Tempo AS dt ON fv.idData = dt.idData
 where dl.nomeLoja =
-'Loja 3' -- DEFINIR LOJA
+'Loja 1' -- DEFINIR LOJA
 AND dt.dataCompleta BETWEEN 
-'2025-01-01' -- DEFINIR PERIODO
+'2023-01-01' -- DEFINIR PERIODO
 AND 
 '2025-03-31' -- DEFINIR PERIODO
 GROUP by dc.nomeCliente
