@@ -3,8 +3,23 @@ CALL dw.sp_etl_completo();
 ----
 select * from dw.etl_log
 --
+select count(*) from dw.fato_vendas
 --
+select count(*) from public.tb010_012_vendas 
 --
+select count(*) from dw.fato_vendas
+--
+
+SELECT 
+    'Total de Vendas' as descricao,
+    fv.quantidade as "Quantidade"
+FROM dw.Fato_Vendas fv
+WHERE fv.idData = -1 
+  AND fv.idCliente = -1 
+  AND fv.idFuncionario = -1 
+  AND fv.idLoja = -1 
+  AND fv.idProduto = -1;  -- Nível mais agregado
+----
 
 delete from dw.fato_vendas;
 delete from dw.dim_cliente;
