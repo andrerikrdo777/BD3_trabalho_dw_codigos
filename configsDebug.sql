@@ -1,5 +1,10 @@
--- EXECUTA PROCEDURE ETL COMPLETA
+---- EXECUTA PROCEDURE ETL COMPLETA
 CALL dw.sp_etl_completo();
+----
+select * from dw.etl_log
+--
+--
+--
 
 delete from dw.fato_vendas;
 delete from dw.dim_cliente;
@@ -14,7 +19,7 @@ select count(*) from dw.fato_vendas;
 
 -- Tabela log
 
-select * from dw.etl_log
+
 
 -- Limpando registros presos 
 	DELETE FROM dw.etl_log WHERE status = 'INICIADO';
@@ -59,7 +64,7 @@ delete from public.tb004_lojas where tb004_cod_loja > 3
 /**            */
 SELECT * FROM dw.Dim_Cliente WHERE cpf = 44422000044; -- Nada
 SELECT COUNT(*) as total_registros_fato FROM dw.Fato_Vendas; -- 114
-/**            */
+/**          
 -- Inserir um novo cliente (opcional)
 INSERT INTO public.tb010_clientes (tb010_cpf, tb010_nome, tb010_fone_residencial, tb010_fone_celular)
 VALUES (44422000044, 'nOVO CLIente de agora', '(41) 3333-9999', '(41) 98888-9999');
@@ -76,10 +81,8 @@ VALUES
 (30022000055, 10, 4, CURRENT_TIMESTAMP, 5, 1.50),
 (30022000055, 10, 4, CURRENT_TIMESTAMP, 5, 1.50);
 -- Vendas para clientes existentes
+           */
 
-
-/**             */
-/d dd 
 -- 1 
 SELECT COUNT(*) 
 FROM dw.Fato_Vendas 
