@@ -1,25 +1,53 @@
 ---- EXECUTA PROCEDURE ETL COMPLETA
 CALL dw.sp_etl_completo();
-----
-select * from dw.etl_log
---
-select count(*) from dw.fato_vendas
---
-select count(*) from public.tb010_012_vendas 
---
-select count(*) from dw.fato_vendas
---
 
-SELECT 
-    'Total de Vendas' as descricao,
-    fv.quantidade as "Quantidade"
-FROM dw.Fato_Vendas fv
-WHERE fv.idData = -1 
-  AND fv.idCliente = -1 
-  AND fv.idFuncionario = -1 
-  AND fv.idLoja = -1 
-  AND fv.idProduto = -1;  -- Nível mais agregado
+---- Tabela etl log
+select * from dw.etl_log
+
+---- Funcao que retorna total_clientes e total_produtos
+select * from dw.fn_verificar_status_etl()
+
+---- Conta registros da tabela fato vendas (32 agregações OLAP)
+select count(*) from dw.fato_vendas
+
+---- Conta registros da tabela vendas do relacional
+select count(*) from public.tb010_012_vendas -- Deve resultar 110
+
+---- Conta registros da tabela clientes do relacional
+select count(*) from public.tb010_clientes -- Deve resultar 51
+
+---- Conta registros da tabela clientes do relacional
+select count(*) from public.tb012_produtos  -- Deve resultar 68
+
+select count(*) from dw.fato_vendas -- Deve resultar 110
+where idFuncionario = -1
+and idLoja = -1
+and idProduto = -1
+and idCliente != -1
+and idData != -1
 ----
+-- Tempo de cada etapa do último ETL
+SELECT 
+    tipo_operacao,
+    data_execucao,
+    duracao,
+    status
+FROM dw.etl_log 
+WHERE data_execucao >= (
+    SELECT MAX(data_execucao) 
+    FROM dw.etl_log 
+    WHERE tipo_operacao = 'ETL_COMPLETO' AND status = 'SUCESSO'
+)
+ORDER BY data_execucao;
+---- 
+select count(*) from dw.fato_vendas -- Deve resultar 110
+where idFuncionario = -1
+and idLoja = -1
+and idProduto = -1
+and idCliente != -1
+and idData != -1
+
+
 
 delete from dw.fato_vendas;
 delete from dw.dim_cliente;
