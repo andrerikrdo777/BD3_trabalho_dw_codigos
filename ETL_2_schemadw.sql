@@ -2,9 +2,10 @@
 DROP SCHEMA IF EXISTS dw CASCADE;
 CREATE SCHEMA dw;
 
+DROP TABLE IF EXISTS dw.Dim_Tempo CASCADE;
 -- 2. CRIAR TABELAS DIMENSIONAIS
 CREATE TABLE dw.Dim_Tempo (
-    idData DATE PRIMARY KEY,
+    idData INTEGER PRIMARY KEY,
     dataCompleta DATE,
     ano INT,
     mes INT,
@@ -40,16 +41,16 @@ CREATE TABLE dw.Dim_Loja (
 );
 
 -- 3. CRIAR TABELA FATO
+drop table dw.Fato_vendas;
 CREATE TABLE dw.Fato_Vendas (
-    idData DATE REFERENCES dw.Dim_Tempo(idData),
+    idData INTEGER REFERENCES dw.Dim_Tempo(idData),
     idCliente INT REFERENCES dw.Dim_Cliente(idCliente),
     idFuncionario INT REFERENCES dw.Dim_Funcionario(idFuncionario),
     idLoja INT REFERENCES dw.Dim_Loja(idLoja),
     idProduto INT REFERENCES dw.Dim_Produto(idProduto),
     quantidade INT NOT NULL,
-    valorTotal NUMERIC(12,2) NOT NULL,
-    custoTotal NUMERIC(12,2) NOT NULL,
-    lucroTotal NUMERIC(12,2) NOT NULL,
+    valor NUMERIC(12,2) NOT NULL,
+    lucro NUMERIC(12,2) NOT NULL,
     PRIMARY KEY (idData, idCliente, idFuncionario, idLoja, idProduto) -- Chave primária composta
 );
 

@@ -84,4 +84,5 @@ SELECT
 FROM public.tb004_lojas l
 JOIN public.tb003_enderecos e ON l.tb003_cod_endereco = e.tb003_cod_endereco
 JOIN public.tb002_cidades cid ON (e.tb002_cod_cidade = cid.tb002_cod_cidade AND e.tb001_sigla_uf = cid.tb001_sigla_uf)
-JOIN public.tb001_uf uf ON cid.tb001_sigla_uf = uf.tb001_sigla_uf;
+JOIN public.tb001_uf uf ON cid.tb001_sigla_uf = uf.tb001_sigla_uf;  
+-- x x x x 

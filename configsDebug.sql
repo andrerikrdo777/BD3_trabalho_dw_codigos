@@ -8,6 +8,10 @@ delete from dw.dim_funcionario;
 delete from dw.dim_tempo;
 delete from dw.dim_produto;
 
+--// Conta registros da tabela Fato
+select count(*) from dw.fato_vendas;
+--//
+
 -- Tabela log
 
 select * from dw.etl_log
@@ -31,6 +35,9 @@ select * from dw.etl_log
 	ORDER BY tipo_operacao;
 
 SET datestyle TO 'MDY';
+
+
+
 
 ALTER DATABASE ads_testee SET datestyle = 'ISO, MDY';
 
@@ -72,4 +79,22 @@ VALUES
 
 
 /**             */
-/
+/d dd 
+-- 1 
+SELECT COUNT(*) 
+FROM dw.Fato_Vendas 
+WHERE idFuncionario = -1 
+  AND idLoja = -1 
+  AND idProduto = -1
+  AND idCliente != -1
+  AND idData != -1;
+-- 2
+SELECT 
+    'Total de Vendas' as descricao,
+    fv.quantidade as "Quantidade"
+FROM dw.Fato_Vendas fv
+WHERE fv.idData = -1 
+  AND fv.idCliente = -1 
+  AND fv.idFuncionario = -1 
+  AND fv.idLoja = -1 
+  AND fv.idProduto = -1;  -- Nível mais agregado
