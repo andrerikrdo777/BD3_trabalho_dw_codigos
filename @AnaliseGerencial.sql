@@ -1,19 +1,6 @@
 
--- 1. Quantidade de vendas por categoria (OLAP)
-SELECT 
-    p.categoria,
-    SUM(fv.quantidade) AS "QuantidadeTotalVendida"
-FROM dw.Fato_Vendas AS fv 
-JOIN dw.Dim_Produto AS p ON fv.idProduto = p.idProduto
-WHERE fv.idData = -1 
-  AND fv.idCliente = -1 
-  AND fv.idFuncionario = -1 
-  AND fv.idLoja = -1
-  AND fv.idProduto != -1
-GROUP BY p.categoria
-ORDER BY "QuantidadeTotalVendida" DESC;
 
--- 2. Valor das vendas por funcionário e tempo (OLAP)
+-- 1. Valor das vendas por funcionário e tempo 
 SELECT 
     dt.ano, 
     dt.mes, 
@@ -29,7 +16,7 @@ WHERE fv.idCliente = -1
   AND fv.idFuncionario != -1
 ORDER BY dt.ano, dt.mes, df.nomeFuncionario;
 
--- 3. Volume das vendas por funcionário (OLAP)
+-- 2. Volume das vendas por funcionário (OLAP)
 SELECT 
     df.nomeFuncionario, 
     fv.quantidade AS "TotalProdutosVendidos", 
@@ -43,7 +30,7 @@ WHERE fv.idData = -1
   AND fv.idFuncionario != -1
 ORDER BY "ValorTotalVendas" DESC;
 
--- 4. Atendimentos por funcionário e localidade (OLAP)
+-- 3. Atendimentos por funcionário e localidade (OLAP)
 SELECT 
     df.nomeFuncionario, 
     dl.nomeLoja, 
@@ -61,7 +48,7 @@ WHERE fv.idData = -1
 ORDER BY df.nomeFuncionario, "NumeroDeAtendimentos" DESC;
 
 
--- 5. Valor das últimas vendas por cliente (OLAP)
+-- 4. Valor das últimas vendas por cliente 
 WITH UltimaVendaCliente AS (
     SELECT 
         fv.idCliente,
@@ -87,28 +74,47 @@ WHERE fv.idFuncionario = -1
   AND fv.idProduto = -1
 ORDER BY dc.nomeCliente;
 
--- 6. Top clientes por loja e período (OLAP)
+-- 5. Clientes que mais compraram na loja virtual com valor acumulado por período
+
 SELECT 
     dc.nomeCliente, 
     fv.valor AS "ValorAcumulado",
-    dl.nomeLoja,
+    'Loja Virtual' as tipo_loja,
     dt.dataCompleta
 FROM dw.Fato_Vendas fv 
 JOIN dw.Dim_Cliente dc ON fv.idCliente = dc.idCliente 
-JOIN dw.Dim_Loja dl ON fv.idLoja = dl.idLoja 
 JOIN dw.Dim_Tempo dt ON fv.idData = dt.idData
 WHERE fv.idFuncionario = -1 
   AND fv.idProduto = -1
   AND fv.idCliente != -1
   AND fv.idData != -1
-  AND fv.idLoja != -1
-  AND dl.nomeLoja = 'Loja 1'  -- Ajuste para uma loja que exista
+  AND fv.idLoja = -1  -- Apenas loja virtual
   AND dt.dataCompleta BETWEEN '2023-01-01' AND '2025-03-31'
-ORDER BY fv.valor DESC 
-LIMIT 10;
+ORDER BY "ValorAcumulado" desc;
 
+-- 6. Quantidade de vendas por categoria (OLAP)
+	SELECT 
+	    p.categoria,
+	    SUM(fv.quantidade) AS "QuantidadeTotalVendida"
+	FROM dw.Fato_Vendas AS fv 
+	JOIN dw.Dim_Produto AS p ON fv.idProduto = p.idProduto
+	WHERE fv.idData = -1 
+	  AND fv.idCliente = -1 
+	  AND fv.idFuncionario = -1 
+	  AND fv.idLoja = -1
+	  AND fv.idProduto != -1
+	GROUP BY p.categoria
+	ORDER BY "QuantidadeTotalVendida" DESC;
 
-
+SELECT 
+    'Total por Categoria' as categoria,
+    fv.quantidade AS "QuantidadeTotalVendida"
+FROM dw.Fato_Vendas AS fv 
+WHERE fv.idData = -1 
+  AND fv.idCliente = -1 
+  AND fv.idFuncionario = -1 
+  AND fv.idLoja = -1
+  AND fv.idProduto = -1;
 
 
 

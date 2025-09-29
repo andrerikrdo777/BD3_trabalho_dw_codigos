@@ -91,7 +91,9 @@ $$ LANGUAGE plpgsql;
 -- POPULA FATO_VENDAS COM TODAS AS AGREGAÇÕES OLAP POSSÍVEIS
 
 delete from dw.fato_vendas 
--- 1. TOTAL GERAL (para totais)
+-- POPULA FATO_VENDAS COM TODAS AS AGREGAÇÕES OLAP POSSÍVEIS
+
+-- 1. TOTAL GERAL (All → All → All → All → All)
 INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
 SELECT -1, -1, -1, -1, -1,
     SUM(v.tb010_012_quantidade),
@@ -101,43 +103,68 @@ FROM stg.vendas v
 ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
     quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
 
--- 2. POR TEMPO (para queries 2, 5, 6 - análise temporal)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, -1, -1, -1,
+-- 2. POR TEMPO (Data → All → All → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, -1, -1, -1,
     SUM(v.tb010_012_quantidade),
     SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
     SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
 FROM stg.vendas v
 GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER)
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
 
--- 3. POR CLIENTE (para queries 5, 6 - análise de clientes)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT -1, c.idCliente, -1, -1, -1,
+-- 3. POR CLIENTE (All → Cliente → All → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, -1, -1, -1,
     SUM(v.tb010_012_quantidade),
     SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
     SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
 FROM stg.vendas v
 JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
 GROUP BY c.idCliente
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
 
--- 4. POR FUNCIONÁRIO (para queries 2, 3, 4 - análise de funcionários)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT -1, -1, v.tb005_matricula, -1, -1,
+-- 4. POR FUNCIONÁRIO (All → All → Funcionario → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, v.tb005_matricula, -1, -1,
     SUM(v.tb010_012_quantidade),
     SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
     SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
 FROM stg.vendas v
 GROUP BY v.tb005_matricula
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
 
--- 5. POR LOJA (para queries 4, 6 - análise por loja)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT -1, -1, -1, l.idLoja, -1,
+-- 5. POR LOJA (All → All → All → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, -1, l.idLoja, -1,
     SUM(v.tb010_012_quantidade),
     SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
     SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
@@ -145,46 +172,32 @@ FROM stg.vendas v
 JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
 JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
 GROUP BY l.idLoja
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
 
--- 6. POR PRODUTO (para query 1 - análise por categoria)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT -1, -1, -1, -1, p.idProduto,
+-- 6. POR PRODUTO (All → All → All → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, -1, -1, p.idProduto,
     SUM(v.tb010_012_quantidade),
     SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
     SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
 FROM stg.vendas v
 JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
 GROUP BY p.idProduto
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
 
--- 7. TEMPO + FUNCIONÁRIO (para query 2 - hierarquia tempo/funcionário)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, v.tb005_matricula, -1, -1,
-    SUM(v.tb010_012_quantidade),
-    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
-    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
-FROM stg.vendas v
-GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), v.tb005_matricula
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
-
--- 8. FUNCIONÁRIO + LOJA (para query 4 - funcionário por localidade)
-INSERT INTO dw.Fato_Vendas (idData, idCliente, idFuncionario, idLoja, idProduto, quantidade, valor, lucro)
-SELECT -1, -1, v.tb005_matricula, l.idLoja, -1,
-    SUM(v.tb010_012_quantidade),
-    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
-    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
-FROM stg.vendas v
-JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
-JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
-GROUP BY v.tb005_matricula, l.idLoja
-ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) DO UPDATE SET 
-    quantidade = EXCLUDED.quantidade, valor = EXCLUDED.valor, lucro = EXCLUDED.lucro;
-
--- 9. CLIENTE + TEMPO (Data → Cliente → All → All → All) - FALTANDO!
+-- 7. TEMPO + CLIENTE (Data → Cliente → All → All → All)
 INSERT INTO dw.Fato_Vendas (
     idData, idCliente, idFuncionario, idLoja, idProduto,
     quantidade, valor, lucro
@@ -203,7 +216,83 @@ DO UPDATE SET
     valor = EXCLUDED.valor,
     lucro = EXCLUDED.lucro;
 
--- 10. CLIENTE + LOJA (All → Cliente → All → Loja → All) - FALTANDO!
+-- 8. TEMPO + FUNCIONÁRIO (Data → All → Funcionario → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, v.tb005_matricula, -1, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), v.tb005_matricula
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 9. TEMPO + LOJA (Data → All → All → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, -1, l.idLoja, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), l.idLoja
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 10. TEMPO + PRODUTO (Data → All → All → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, -1, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 11. CLIENTE + FUNCIONÁRIO (All → Cliente → Funcionario → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, v.tb005_matricula, -1, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+GROUP BY c.idCliente, v.tb005_matricula
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 12. CLIENTE + LOJA (All → Cliente → All → Loja → All)
 INSERT INTO dw.Fato_Vendas (
     idData, idCliente, idFuncionario, idLoja, idProduto,
     quantidade, valor, lucro
@@ -224,7 +313,106 @@ DO UPDATE SET
     valor = EXCLUDED.valor,
     lucro = EXCLUDED.lucro;
 
--- 11. CLIENTE + LOJA + TEMPO (Data → Cliente → All → Loja → All) - FALTANDO!
+-- 13. CLIENTE + PRODUTO (All → Cliente → All → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, -1, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY c.idCliente, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 14. FUNCIONÁRIO + LOJA (All → All → Funcionario → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, v.tb005_matricula, l.idLoja, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+GROUP BY v.tb005_matricula, l.idLoja
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 15. FUNCIONÁRIO + PRODUTO (All → All → Funcionario → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, v.tb005_matricula, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY v.tb005_matricula, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 16. LOJA + PRODUTO (All → All → All → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, -1, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 17. TEMPO + CLIENTE + FUNCIONÁRIO (Data → Cliente → Funcionario → All → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, -1, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 18. TEMPO + CLIENTE + LOJA (Data → Cliente → All → Loja → All)
 INSERT INTO dw.Fato_Vendas (
     idData, idCliente, idFuncionario, idLoja, idProduto,
     quantidade, valor, lucro
@@ -243,6 +431,298 @@ ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto)
 DO UPDATE SET 
     quantidade = EXCLUDED.quantidade,
     valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 19. TEMPO + CLIENTE + PRODUTO (Data → Cliente → All → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, -1, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 20. TEMPO + FUNCIONÁRIO + LOJA (Data → All → Funcionario → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, v.tb005_matricula, l.idLoja, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), v.tb005_matricula, l.idLoja
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 21. TEMPO + FUNCIONÁRIO + PRODUTO (Data → All → Funcionario → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, v.tb005_matricula, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), v.tb005_matricula, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 22. TEMPO + LOJA + PRODUTO (Data → All → All → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, -1, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 23. CLIENTE + FUNCIONÁRIO + LOJA (All → Cliente → Funcionario → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, v.tb005_matricula, l.idLoja, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+GROUP BY c.idCliente, v.tb005_matricula, l.idLoja
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 24. CLIENTE + FUNCIONÁRIO + PRODUTO (All → Cliente → Funcionario → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, v.tb005_matricula, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY c.idCliente, v.tb005_matricula, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 25. CLIENTE + LOJA + PRODUTO (All → Cliente → All → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, -1, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY c.idCliente, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 26. FUNCIONÁRIO + LOJA + PRODUTO (All → All → Funcionario → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, -1, v.tb005_matricula, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY v.tb005_matricula, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 27. TEMPO + CLIENTE + FUNCIONÁRIO + LOJA (Data → Cliente → Funcionario → Loja → All)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, l.idLoja, -1,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, l.idLoja
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 28. TEMPO + CLIENTE + FUNCIONÁRIO + PRODUTO (Data → Cliente → Funcionario → All → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, -1, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 29. TEMPO + CLIENTE + LOJA + PRODUTO (Data → Cliente → All → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, -1, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 30. TEMPO + FUNCIONÁRIO + LOJA + PRODUTO (Data → All → Funcionario → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), -1, v.tb005_matricula, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), v.tb005_matricula, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 31. CLIENTE + FUNCIONÁRIO + LOJA + PRODUTO (All → Cliente → Funcionario → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    -1, c.idCliente, v.tb005_matricula, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY c.idCliente, v.tb005_matricula, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor,
+    lucro = EXCLUDED.lucro;
+
+-- 32. TEMPO + CLIENTE + FUNCIONÁRIO + LOJA + PRODUTO (Data → Cliente → Funcionario → Loja → Produto)
+INSERT INTO dw.Fato_Vendas (
+    idData, idCliente, idFuncionario, idLoja, idProduto,
+    quantidade, valor, lucro
+)
+SELECT 
+    CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, l.idLoja, p.idProduto,
+    SUM(v.tb010_012_quantidade),
+    SUM(v.tb010_012_valor_unitario * v.tb010_012_quantidade),
+    SUM(calcular_lucro(v.tb012_cod_produto, v.tb010_012_valor_unitario, v.tb010_012_quantidade))
+FROM stg.vendas v
+JOIN dw.Dim_Cliente c ON v.tb010_cpf = c.cpf
+JOIN stg.funcionarios f ON v.tb005_matricula = f.tb005_matricula
+JOIN dw.Dim_Loja l ON f.tb004_cod_loja = l.idLoja
+JOIN dw.Dim_Produto p ON v.tb012_cod_produto = p.codProdutoOrigem
+GROUP BY CAST(TO_CHAR(v.tb010_012_data, 'YYYYMMDD') AS INTEGER), c.idCliente, v.tb005_matricula, l.idLoja, p.idProduto
+ON CONFLICT (idData, idCliente, idFuncionario, idLoja, idProduto) 
+DO UPDATE SET 
+    quantidade = EXCLUDED.quantidade,
+    valor = EXCLUDED.valor, 
     lucro = EXCLUDED.lucro;
 --
 --
